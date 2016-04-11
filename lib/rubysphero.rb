@@ -55,10 +55,7 @@ class SpheroClient
 	def ping
 		logd()
 		logd "Building request: ping"
-		request=SpheroRequest.new()
-
-		request.sop1=0xFF	
-		request.sop2=0xFF
+		request=SpheroRequest.new(:synchronous)
 
 		request.did=0x00 
 		request.cid=0x01 # Ping
@@ -112,10 +109,7 @@ class SpheroClient
 		logd()
 		logd "Building request: set back led output b"
 		
-		request=SpheroRequest.new()
-
-		request.sop1=0xFF	
-		request.sop2=0xFF
+		request=SpheroRequest.new(:synchronous)
 
 		request.did=0x02 
 		request.cid=0x21 
@@ -132,12 +126,9 @@ class SpheroClient
 		logd
 		logd( "Building request: Set Heading")
 
-		request=SpheroRequest.new()
+		request=SpheroRequest.new(:synchronous)
 		heading = heading_raw%359
 		logd( "Heading: #{heading}")
-		
-		request.sop1=0xFF	
-		request.sop2=0xFF
 
 		request.did=0x02 
 		request.cid=0x01
@@ -163,10 +154,8 @@ class SpheroClient
 		logd
 		logd "Building request: colour"
 		
-		request=SpheroRequest.new()
+		request=SpheroRequest.new(:synchronous)
 
-		request.sop1=0xFF	
-		request.sop2=0xFF
 
 		request.did=0x02 
 		request.cid=0x20 # Set RGB Output
@@ -186,12 +175,9 @@ class SpheroClient
 		logd()
 		logd( "Building request: roll")
 
-		request=SpheroRequest.new()
+		request=SpheroRequest.new(:synchronous)
 		heading = heading_raw%359
 		logd( "Heading: #{heading}")
-		
-		request.sop1=0xFF	
-		request.sop2=0xFF
 
 		request.did=0x02 
 		request.cid=0x30 # Roll
@@ -282,7 +268,12 @@ class SpheroRequest
 	#attr_accessor :payload_data
 
 	
-	def initialize
+	def initialize(type=:synchronous)
+		if type==:synchronous
+			@sop1=0xFF
+			@sop2=0xFF 
+		end # if
+		
 		@packet_data=Array.new
 		@payload_data=Array.new
 	end # def 
