@@ -38,10 +38,12 @@ module SpheroUtilities
 	end # def 
 
 end # mod 
+
 class SpheroClient
 
 	include SpheroUtilities
-
+	COMMS_RETRY=5
+	
 		COLOURS = { 	:blue 	=> 	[0x00,0x00,0xFF],
 							:green 	=> 	[0x00,0xFF,0x00],
 							:red	=>	[0xFF,0x00,0x00],
@@ -59,26 +61,37 @@ class SpheroClient
 
 		request.did=0x00 
 		request.cid=0x01 # Ping
-		request.seq=0x52
+		request.seq=get_sequence
 		request.dlen=0x01
-		send_data(request.build_packet)
 		
-		read_data
+		return send_and_check(request)
 	end # def 
 
+	def send_and_check(request)
+		send_data(request.build_packet)
+
+		COMMS_RETRY.times do
+			response = read_data(request.length)
+			if request.seq == response.echoed_seq then
+				logd("Sent and received Sequences MATCH.")	
+				return true
+			end # if 
+			logd("Sequences do not match. Sent:#{request.seq} Rec:#{response.echoed_seq} ")
+		end # times
+		return false
+	end # data 
+	
 	def send_data(data)
 		logd("Wire send next.")
 		@connection.write data
-
 	end # def 
 
-	def read_data
-		bytes=@connection.read(7).unpack("C*")
+	def read_data(length)
+		bytes=@connection.read(length).unpack("C*")
 		logd("Wire read finished.")
 		response = SpheroResponse.new( bytes)
 
 		return response
-		
 	end	# def
 	
 	def orientation
@@ -96,12 +109,12 @@ class SpheroClient
 				set_back_led_output(0)
 				set_heading(heading)
 				set_colour(:white)
-				break
+				return true
 			else 
 				sleep 1	
 			end # if 
 		end # upto 	
-	
+		return false
 	end # def 
 	
 	
@@ -113,12 +126,11 @@ class SpheroClient
 
 		request.did=0x02 
 		request.cid=0x21 
-		request.seq=0x53
+		request.seq=get_sequence
 		request.dlen=0x02
 		request.push_data brightness 
 		
-		send_data(request.build_packet)
-		read_data	
+		return send_and_check(request)	
 	
 	end # def 
 	
@@ -132,21 +144,19 @@ class SpheroClient
 
 		request.did=0x02 
 		request.cid=0x01
-		request.seq=0x55
+		request.seq=get_sequence
 		request.dlen=0x03
 		
 		request.push_data(heading , :a16bit)
 		
-		send_data(request.build_packet)
-		read_data	
-	
+		return send_and_check(request)	
 	
 	end # def 
 
 	def set_colour(chosen_colour) 
 		logd
 		logd("Locating RGB values for: #{chosen_colour}")
-		set_colour_rgb(COLOURS[chosen_colour][0],COLOURS[chosen_colour][1],COLOURS[chosen_colour][2])
+		return set_colour_rgb(COLOURS[chosen_colour][0],COLOURS[chosen_colour][1],COLOURS[chosen_colour][2])
 	end # def 
 	
 	
@@ -159,7 +169,7 @@ class SpheroClient
 
 		request.did=0x02 
 		request.cid=0x20 # Set RGB Output
-		request.seq=0x53
+		request.seq=get_sequence
 		request.dlen=0x05
 		request.push_data red_value 
 		request.push_data green_value
@@ -167,8 +177,8 @@ class SpheroClient
 		flag=0x01
 		request.push_data flag 
 		
-		send_data(request.build_packet)
-		read_data
+		return send_and_check(request)
+
 	end # def 
 
 	def roll(heading_raw=0, speed=0xFF)
@@ -181,7 +191,7 @@ class SpheroClient
 
 		request.did=0x02 
 		request.cid=0x30 # Roll
-		request.seq=0x54
+		request.seq=get_sequence
 		request.dlen=0x05
 
 		state=0x01
@@ -190,12 +200,21 @@ class SpheroClient
 		request.push_data(heading , :a16bit)
 		request.push_data state
 		
-		send_data(request.build_packet)
-		read_data	
+		return send_and_check(request)	
 
 	end #def 
 
+	def get_sequence
+		@sequence_val+=1
+		if @sequence_val > 255
+			@sequence_val=0 
+		end # if
+		logd("Getting seq: #{@sequence_val}")
+		return @sequence_val
+	end # def 
+	
 	def initialize(bluetooth_address)
+		@sequence_val=0 
 		return open(bluetooth_address)
 	end # class
 
@@ -220,7 +239,7 @@ class SpheroResponse
 	
 	attr_accessor :calculated_checksum
 	attr_accessor :raw_checksum
-
+	attr_accessor :echoed_seq
 	attr_accessor :raw_data
 	attr_accessor :data
 	attr_accessor :valid
@@ -247,6 +266,8 @@ class SpheroResponse
 			if @raw_checksum == @calculated_checksum then
 				logd("Response Checksum is good")
 				@valid=true
+				logd("Response data:#{bytes}")
+				@echoed_seq=bytes[1]
 				@data=bytes
 			end # if 
 			
@@ -265,7 +286,7 @@ class SpheroRequest
 	attr_accessor :dlen
 	attr_accessor :seq
 	attr_accessor :checksum
-	#attr_accessor :payload_data
+	attr_accessor :sequence
 
 	
 	def initialize(type=:synchronous)
@@ -276,6 +297,10 @@ class SpheroRequest
 		
 		@packet_data=Array.new
 		@payload_data=Array.new
+	end # def 
+
+	def length
+		return @packet_data.length
 	end # def 
 	
 	def build_packet
