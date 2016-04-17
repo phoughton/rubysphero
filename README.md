@@ -30,6 +30,7 @@ sphero.orientation
 sphero.roll(0,70)
 sleep 2 
 
+# Roll right (90 degrees) at speed 70.
 sphero.roll(90,70)
 sleep 2 
 
