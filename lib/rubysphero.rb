@@ -71,12 +71,12 @@ class SpheroClient
 		send_data(request.build_packet)
 
 		COMMS_RETRY.times do
-			response = read_data(request.length)
+			response = read_data(request)
 			if request.seq == response.echoed_seq then
 				logd("Sent and received Sequences MATCH.")	
 				return true
 			end # if 
-			logd("Sequences do not match. Sent:#{request.seq} Rec:#{response.echoed_seq} ")
+			logd("Sequences do NOT MATCH. Sent:#{request.seq} Rec:#{response.echoed_seq} ")
 		end # times
 		return false
 	end # data 
@@ -86,10 +86,39 @@ class SpheroClient
 		@connection.write data
 	end # def 
 
-	def read_data(length)
-		bytes=@connection.read(length).unpack("C*")
-		logd("Wire read finished.")
-		response = SpheroResponse.new( bytes)
+	def read_data(request)
+		#logd ("Length to read: #{length}")
+		#bytes=@connection.read(length).unpack("C*")
+		bytes=[]
+		get_more_data = true 
+
+		begin 
+			byte_maybe=@connection.getbyte
+			print ","
+
+			if byte_maybe
+				bytes.push byte_maybe
+				logd("Wire returned a byte: #{byte_maybe}")
+		
+				response = SpheroResponse.new(bytes.dup)
+				if request.seq == response.echoed_seq then
+					if response.valid
+						logd("Response is valid!!!")
+						return response
+					else
+						logd("Response not valid yet...")
+					end # if 
+				end # if 
+			else
+				#get_more_data = false
+				print "."
+				sleep 0
+			end # else 
+		end while get_more_data
+		
+		#logd("Wire read finished.")
+		#response = SpheroResponse.new( bytes)
+		#logd ("Length actually read: #{response.raw_length}")
 
 		return response
 	end	# def
@@ -247,7 +276,16 @@ class SpheroResponse
 
 	def initialize(raw_data)
 		@valid=false
+		@raw_data=raw_data.dup
 		@data=process_data(raw_data)
+	end # def
+	
+	def raw_length
+		if @data==nil
+			return 0
+		else
+			@raw_data.length
+		end # else
 	end # def
 	
 	def process_data(bytes)
