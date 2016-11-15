@@ -69,16 +69,10 @@ class SpheroClient
 
 	def send_and_check(request)
 		send_data(request.build_packet)
+		response = read_data(request)
 
-		COMMS_RETRY.times do
-			response = read_data(request)
-			if request.seq == response.echoed_seq then
-				logd("Sent and received Sequences MATCH.")	
-				return true
-			end # if 
-			logd("Sequences do NOT MATCH. Sent:#{request.seq} Rec:#{response.echoed_seq} ")
-		end # times
-		return false
+		return response.valid
+		
 	end # data 
 	
 	def send_data(data)
@@ -87,8 +81,7 @@ class SpheroClient
 	end # def 
 
 	def read_data(request)
-		#logd ("Length to read: #{length}")
-		#bytes=@connection.read(length).unpack("C*")
+
 		bytes=[]
 		get_more_data = true 
 
@@ -103,7 +96,7 @@ class SpheroClient
 				response = SpheroResponse.new(bytes.dup)
 				if request.seq == response.echoed_seq then
 					if response.valid
-						logd("Response is valid!!!")
+						logd("Sequences match: Response is valid!!!")
 						return response
 					else
 						logd("Response not valid yet...")
@@ -115,10 +108,6 @@ class SpheroClient
 				sleep 0
 			end # else 
 		end while get_more_data
-		
-		#logd("Wire read finished.")
-		#response = SpheroResponse.new( bytes)
-		#logd ("Length actually read: #{response.raw_length}")
 
 		return response
 	end	# def
@@ -302,12 +291,14 @@ class SpheroResponse
 			@calculated_checksum=do_checksum( bytes )
 			logd "Response checksum: #{@calculated_checksum.to_s(16)}"
 			if @raw_checksum == @calculated_checksum then
-				logd("Response Checksum is good")
+				logd("Response Checksum is GOOD")
 				@valid=true
 				logd("Response data:#{bytes}")
 				@echoed_seq=bytes[1]
 				@data=bytes
-			end # if 
+			else
+				logd("Response Checksum is BAD")				
+			end # else
 			
 		end # else 
 		
