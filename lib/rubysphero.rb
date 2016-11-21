@@ -165,9 +165,12 @@ class SpheroClient
 				if bytes.length >= 3 then
 					if (bytes[0] == 0xFF) && (bytes[1] == 0xFE)
 						logd("Asyschronous Packet")
+						if bytes[2] == 0x07 then
+							logd("COLLISION DETECTION ASYNC RESPONSE!!!!")
+						end # if 
 					elsif (bytes[0] == 0xFF) && (bytes[1] == 0xFF)
 						logd("Syschronous Packet")			
-
+			
 					else
 						logd("Odd response starts with: #{bytes}")		
 						
