@@ -1,5 +1,6 @@
 require 'rubyserial'
 require 'date'
+require 'thread'
 
 module SpheroUtilities
 
@@ -43,6 +44,7 @@ class SpheroClient
 
 	include SpheroUtilities
 	COMMS_RETRY=5
+	@read_thread
 	
 		COLOURS = { 	:blue 	=> 	[0x00,0x00,0xFF],
 							:green 	=> 	[0x00,0xFF,0x00],
@@ -64,13 +66,35 @@ class SpheroClient
 		request.seq=get_sequence
 		request.dlen=0x01
 		
-		return send_and_check(request)
+		if send_and_check(request) then
+			logd("PING RESPONSE RECEIVED!!!")
+			return true
+		else
+			return false
+		end #  else 
 	end # def 
 
 	def send_and_check(request)
+		queue_a_request(request)
 		send_data(request.build_packet)
-		response = read_data(request)
-
+		logd("Just sent data")
+		#response = read_data(request)
+		responded =nil
+		start_time=Time.now.getutc.to_i
+		logd("Start time: #{start_time}")
+		begin
+			
+			if @responses.has_key? request.seq
+				logd("Response Queue has matching sequence")
+				return @responses[request.seq]
+			end # if
+			sleep 0
+			if Time.now.getutc.to_i > (start_time+5)
+				logd("Timing out waiting for a response.")
+				return false
+			end # if 
+		end while !responded
+		
 		return response.valid
 		
 	end # data 
@@ -80,6 +104,20 @@ class SpheroClient
 		@connection.write data
 	end # def 
 
+	def listen_to_sphero
+		while true do
+			#logd("Length of queue to send: #{queued_requests.length}")
+			if queued_requests.length != 0 then 
+				logd("Length of queue to send is non zero, it is: #{queued_requests.length}")
+				new_response = read_data(queued_requests.pop)
+				@responses[new_response.echoed_seq]  = new_response
+			else
+				sleep 0
+			end # else 
+		end # def 
+	
+	end # def 
+	
 	def read_data(request)
 
 		bytes=[]
@@ -103,7 +141,6 @@ class SpheroClient
 					end # if 
 				end # if 
 			else
-				#get_more_data = false
 				print "."
 				sleep 0
 			end # else 
@@ -222,24 +259,52 @@ class SpheroClient
 
 	end #def 
 
+	def queued_requests
+		return @queued_requests
+	end # def
+	
+	def queue_a_request(request)
+		@queued_requests.push request
+	end # def 
+	
+	def forget_a_request(request)
+		@queued_requests.delete request
+	end # def 
+	
 	def get_sequence
 		@sequence_val+=1
 		if @sequence_val > 255
 			@sequence_val=0 
 		end # if
 		logd("Getting seq: #{@sequence_val}")
+		
 		return @sequence_val
 	end # def 
 	
 	def initialize(bluetooth_address)
 		@sequence_val=0 
+		@responses=Hash.new
+		@queued_requests=[]
+		logd("Calling open connnection next. Using: #{bluetooth_address}")
+		
+		@read_thread = Thread.new {
+			logd("Listen thread started...")
+			listen_to_sphero
+			logd("Listen thread ending...")
+		} # thread 
+		
 		return open(bluetooth_address)
+
 	end # class
 
 	def open(bluetooth_address)
 		begin
+			logd("About to open Connection")
 			@connection   = Serial.new bluetooth_address, 115200 ,8
+			logd("Connection:#{@connection.to_s}")
 		rescue RubySerial::Exception
+			logd("Connection failed, about to retry...")
+			sleep 1
 			open bluetooth_address
 		end
 		return @connection
