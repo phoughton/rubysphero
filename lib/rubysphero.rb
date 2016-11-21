@@ -56,6 +56,39 @@ class SpheroClient
 							:pink	=>	[0xFF,0x00,0xFF],
 							:grey	=>	[0x80,0x80,0x80]}
 	
+	def collision_detection(status=true)
+		logd()
+		logd "Building request: Collision detection"
+		if status == true
+			meth=0x01
+		else
+			meth=0x00
+		end #  else
+		
+		request=SpheroRequest.new(:synchronous)
+
+		request.did=0x02 
+		request.cid=0x12 # Collision Detection
+		request.seq=get_sequence
+		request.dlen=0x07
+		
+		request.push_data meth
+		request.push_data 0x7F # xt
+		request.push_data 0x40 # xspd
+		request.push_data 0x7F # yt
+		request.push_data 0x40 # yspd		
+		request.push_data 0x40 # dead		
+		
+		if send_and_check(request) then
+			logd("Collision Detection Confirmation RESPONSE RECEIVED!!!")
+			return true
+		else
+			return false
+		end #  else 
+	end # def 	
+	
+	
+	
 	def ping
 		logd()
 		logd "Building request: ping"
@@ -89,7 +122,7 @@ class SpheroClient
 				return @responses[request.seq]
 			end # if
 			sleep 0
-			if Time.now.getutc.to_i > (start_time+5)
+			if Time.now.getutc.to_i > (start_time+2)
 				logd("Timing out waiting for a response.")
 				return false
 			end # if 
@@ -106,24 +139,20 @@ class SpheroClient
 
 	def listen_to_sphero
 		while true do
-			#logd("Length of queue to send: #{queued_requests.length}")
-			if queued_requests.length != 0 then 
-				logd("Length of queue to send is non zero, it is: #{queued_requests.length}")
-				new_response = read_data(queued_requests.pop)
-				@responses[new_response.echoed_seq]  = new_response
-			else
-				sleep 0
-			end # else 
-		end # def 
+			logd("Listening...")
+
+			response=read_data
+			@responses[response.echoed_seq] =response 
+			sleep 0 
+		end # while 
 	
 	end # def 
 	
-	def read_data(request)
-
+	def read_data()
 		bytes=[]
 		get_more_data = true 
-
-		begin 
+		logd("Reading...")
+		while @connection !=nil do  
 			byte_maybe=@connection.getbyte
 			print ","
 
@@ -131,22 +160,39 @@ class SpheroClient
 				bytes.push byte_maybe
 				logd("Wire returned a byte: #{byte_maybe}")
 		
-				response = SpheroResponse.new(bytes.dup)
-				if request.seq == response.echoed_seq then
+				# if header arrived, check is synchronous
+				# response or asynchronous
+				if bytes.length >= 3 then
+					if (bytes[0] == 0xFF) && (bytes[1] == 0xFE)
+						logd("Asyschronous Packet")
+					elsif (bytes[0] == 0xFF) && (bytes[1] == 0xFF)
+						logd("Syschronous Packet")			
+
+					else
+						logd("Odd response starts with: #{bytes}")		
+						
+					end # else 
+		
+					response = SpheroResponse.new(bytes.dup)
+
 					if response.valid
-						logd("Sequences match: Response is valid!!!")
+						logd("Response considers itself valid")
+				
 						return response
 					else
 						logd("Response not valid yet...")
 					end # if 
-				end # if 
+
+					
+				end # if bytes length					
+				
 			else
 				print "."
 				sleep 0
 			end # else 
-		end while get_more_data
-
-		return response
+		end # while
+		logd("Connection must have become nil")
+		return false
 	end	# def
 	
 	def orientation
@@ -284,8 +330,11 @@ class SpheroClient
 	def initialize(bluetooth_address)
 		@sequence_val=0 
 		@responses=Hash.new
+		
 		@queued_requests=[]
 		logd("Calling open connnection next. Using: #{bluetooth_address}")
+		
+		conn = open(bluetooth_address)
 		
 		@read_thread = Thread.new {
 			logd("Listen thread started...")
@@ -293,7 +342,7 @@ class SpheroClient
 			logd("Listen thread ending...")
 		} # thread 
 		
-		return open(bluetooth_address)
+		return conn
 
 	end # class
 
