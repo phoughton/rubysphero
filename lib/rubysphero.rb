@@ -2,6 +2,10 @@ require 'rubyserial'
 require 'date'
 require 'thread'
 
+MIN_LENGTH_OF_PACKET=6
+RESPONSE_TIMEOUT_SECONDS=2
+BAUD_RATE=115200
+
 module SpheroUtilities
 
 
@@ -122,7 +126,7 @@ class SpheroClient
 				return @responses[request.seq]
 			end # if
 			sleep 0
-			if Time.now.getutc.to_i > (start_time+2)
+			if Time.now.getutc.to_i > (start_time+RESPONSE_TIMEOUT_SECONDS)
 				logd("Timing out waiting for a response.")
 				return false
 			end # if 
@@ -162,7 +166,7 @@ class SpheroClient
 		
 				# if header arrived, check is synchronous
 				# response or asynchronous
-				if bytes.length >= 3 then
+				if bytes.length >= MIN_LENGTH_OF_PACKET then
 					if (bytes[0] == 0xFF) && (bytes[1] == 0xFE)
 						logd("Asyschronous Packet")
 						if bytes[2] == 0x07 then
@@ -352,7 +356,7 @@ class SpheroClient
 	def open(bluetooth_address)
 		begin
 			logd("About to open Connection")
-			@connection   = Serial.new bluetooth_address, 115200 ,8
+			@connection   = Serial.new bluetooth_address, BAUD_RATE ,8
 			logd("Connection:#{@connection.to_s}")
 		rescue RubySerial::Exception
 			logd("Connection failed, about to retry...")
@@ -378,6 +382,8 @@ class SpheroResponse
 	attr_accessor :raw_data
 	attr_accessor :data
 	attr_accessor :valid
+	attr_accessor :sop1
+	attr_accessor :sop2
 
 
 	def initialize(raw_data)
@@ -385,6 +391,18 @@ class SpheroResponse
 		@raw_data=raw_data.dup
 		@data=process_data(raw_data)
 	end # def
+	
+	def synchronicity?
+	
+		if (@sop1==0xFF) && (@sop2==0xFE) then
+			return :asynchronous
+		elsif (@sop1==0xFF) && (@sop2==0xFF)
+			return :synchronous
+		else 
+			return nil 
+		end # else 
+		
+	end # def 
 	
 	def raw_length
 		if @data==nil
@@ -401,8 +419,8 @@ class SpheroResponse
 			logd "Response: Was nil"
 		else 
 			logd "Response data raw: #{print_format_bytes(bytes)}"
-			bytes.shift
-			bytes.shift
+			@sop1 = bytes.shift
+			@sop1 = bytes.shift
 			@raw_checksum=bytes.pop
 
 			@calculated_checksum=do_checksum( bytes )
