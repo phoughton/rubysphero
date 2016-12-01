@@ -198,8 +198,8 @@ class SpheroClient
 						logd("Syschronous Packet")			
 			
 					else
-						logd("Odd response starts with: #{bytes}")		
-						
+						logd("Odd response starts with: #{bytes}, will try removing first byte.")		
+						bytes.shift
 					end # else 
 		
 					response = SpheroResponse.new(bytes.dup)
