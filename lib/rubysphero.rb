@@ -49,6 +49,7 @@ class SpheroClient
 	include SpheroUtilities
 	COMMS_RETRY=5
 	@read_thread
+	@collision_action 
 	
 		COLOURS = { 	:blue 	=> 	[0x00,0x00,0xFF],
 							:green 	=> 	[0x00,0xFF,0x00],
@@ -111,6 +112,27 @@ class SpheroClient
 		end #  else 
 	end # def 
 
+	def define_event_handling_for(event_type, &actions)
+		puts "General event_type setup."
+		if event_type==:collision then
+			puts "Defining an event handler. type: #{event_type}"
+			@collision_action=actions
+		end # if 
+	end # def 
+	
+	def handle_collision_event(the_event_response )
+		logd("Handling collition event!")
+		Thread.new do
+			logd("In new handler thread...")
+			if @collision_action != nil then 
+				puts "Collision action was NOT nil"
+				@collision_action.call the_event_response
+			else
+				puts "Collision action was nil"
+			end # if 
+		end # thread 
+	end # 
+	
 	def send_and_check(request)
 		queue_a_request(request)
 		send_data(request.build_packet)
@@ -184,7 +206,11 @@ class SpheroClient
 
 					if response.valid
 						logd("Response considers itself valid")
-				
+						logd( "#{response.synchronicity?}" )
+						if (response.synchronicity? == :asynchronous) && (bytes[2] == 0x07) then
+							handle_collision_event(response )
+						end # else
+						
 						return response
 					else
 						logd("Response not valid yet...")
@@ -393,7 +419,10 @@ class SpheroResponse
 	end # def
 	
 	def synchronicity?
-	
+		logd("Synchronicity?")
+		logd("#{@sop1}")
+		logd("#{@sop2}")
+
 		if (@sop1==0xFF) && (@sop2==0xFE) then
 			return :asynchronous
 		elsif (@sop1==0xFF) && (@sop2==0xFF)
@@ -420,7 +449,7 @@ class SpheroResponse
 		else 
 			logd "Response data raw: #{print_format_bytes(bytes)}"
 			@sop1 = bytes.shift
-			@sop1 = bytes.shift
+			@sop2 = bytes.shift
 			@raw_checksum=bytes.pop
 
 			@calculated_checksum=do_checksum( bytes )
