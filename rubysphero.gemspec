@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'rubysphero'
-  s.version     = '0.0.2'
+  s.version     = '0.0.3dev'
   s.date        = '2016-04-04'
   s.add_runtime_dependency 'rubyserial', '~>0.2' ,'>= 0.2.4'
   s.summary     = "A simple Sphero client library."
