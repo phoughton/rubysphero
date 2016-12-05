@@ -8,7 +8,6 @@ BAUD_RATE=115200
 
 module SpheroUtilities
 
-
 	def print_format_bytes(bytes)
 		return_str=""
 		bytes.each do |rsp_array|
@@ -38,13 +37,26 @@ module SpheroUtilities
 		return full_bytes
 	end # def
 	
-	def logd(log_str="")
-		puts DateTime.now.strftime("%Y-%m-%d %H:%M:%S.%L") + " " + log_str
-	end # def 
+
 
 end # mod 
 
-class SpheroClient
+class SpheroBase 	
+
+	attr_accessor :debug
+
+	def logd(log_str="")
+		if @debug==nil then
+			# chill.
+		elsif @debug==true then
+			puts DateTime.now.strftime("%Y-%m-%d %H:%M:%S.%L") + " " + log_str
+		end # elsif 
+	end # def 
+
+end # class
+
+
+class SpheroClient < SpheroBase
 
 	include SpheroUtilities
 	COMMS_RETRY=5
@@ -70,7 +82,7 @@ class SpheroClient
 			meth=0x00
 		end #  else
 		
-		request=SpheroRequest.new(:synchronous)
+		request=SpheroRequest.new(:synchronous, self.debug)
 
 		request.did=0x02 
 		request.cid=0x12 # Collision Detection
@@ -85,7 +97,6 @@ class SpheroClient
 		request.push_data 0x40 # dead		
 		
 		if send_and_check(request) then
-			logd("Collision Detection Confirmation RESPONSE RECEIVED!!!")
 			return true
 		else
 			return false
@@ -97,7 +108,7 @@ class SpheroClient
 	def ping
 		logd()
 		logd "Building request: ping"
-		request=SpheroRequest.new(:synchronous)
+		request=SpheroRequest.new(:synchronous, self.debug)
 
 		request.did=0x00 
 		request.cid=0x01 # Ping
@@ -113,31 +124,28 @@ class SpheroClient
 	end # def 
 
 	def define_event_handling_for(event_type, &actions)
-		puts "General event_type setup."
 		if event_type==:collision then
-			puts "Defining an event handler. type: #{event_type}"
 			@collision_action=actions
 		end # if 
 	end # def 
 	
 	def handle_collision_event(the_event_response )
-		logd("Handling collition event!")
+		logd("Handling collision event!")
 		Thread.new do
-			logd("In new handler thread...")
 			if @collision_action != nil then 
-				puts "Collision action was NOT nil"
+				logd "Collision action was NOT nil"
 				@collision_action.call the_event_response
 			else
-				puts "Collision action was nil"
+				logd "Collision action was nil"
 			end # if 
 		end # thread 
 	end # 
 	
 	def send_and_check(request)
 		queue_a_request(request)
+
 		send_data(request.build_packet)
-		logd("Just sent data")
-		#response = read_data(request)
+
 		responded =nil
 		start_time=Time.now.getutc.to_i
 		logd("Start time: #{start_time}")
@@ -147,19 +155,21 @@ class SpheroClient
 				logd("Response Queue has matching sequence")
 				return @responses[request.seq]
 			end # if
+			
 			sleep 0
+			
 			if Time.now.getutc.to_i > (start_time+RESPONSE_TIMEOUT_SECONDS)
 				logd("Timing out waiting for a response.")
 				return false
 			end # if 
-		end while !responded
+
+			end while !responded
 		
 		return response.valid
 		
 	end # data 
 	
 	def send_data(data)
-		logd("Wire send next.")
 		@connection.write data
 	end # def 
 
@@ -176,55 +186,65 @@ class SpheroClient
 	
 	def read_data()
 		bytes=[]
-		get_more_data = true 
+
 		logd("Reading...")
+		
 		while @connection !=nil do  
 			byte_maybe=@connection.getbyte
-			print ","
 
 			if byte_maybe
+			
 				bytes.push byte_maybe
-				logd("Wire returned a byte: #{byte_maybe}")
+				
+				logd("Received a byte: #{byte_maybe}")
 		
-				# if header arrived, check is synchronous
-				# response or asynchronous
+				# Check response is long enough to bother with.
 				if bytes.length >= MIN_LENGTH_OF_PACKET then
+				
 					if (bytes[0] == 0xFF) && (bytes[1] == 0xFE)
-						logd("Asyschronous Packet")
-						if bytes[2] == 0x07 then
-							logd("COLLISION DETECTION ASYNC RESPONSE!!!!")
-						end # if 
+					
+						logd("First 2 bytes indicate it is an Asyschronous Packet")
+					
 					elsif (bytes[0] == 0xFF) && (bytes[1] == 0xFF)
-						logd("Syschronous Packet")			
+					
+						logd("First 2 bytes indicate it is a Syschronous Packet")			
 			
 					else
+					
 						logd("Odd response starts with: #{bytes}, will try removing first byte.")		
 						bytes.shift
+					
 					end # else 
 		
-					response = SpheroResponse.new(bytes.dup)
+					response = SpheroResponse.new(bytes.dup, self.debug)
 
 					if response.valid
-						logd("Response considers itself valid")
-						logd( "#{response.synchronicity?}" )
+						
+						# Handle Asynchronous Collision detection responses.
 						if (response.synchronicity? == :asynchronous) && (bytes[2] == 0x07) then
 							handle_collision_event(response )
 						end # else
 						
 						return response
+						
 					else
-						logd("Response not valid yet...")
-					end # if 
+					
+						logd("Response not valid yet, keep reading.")
+					
+					end # else  
 
 					
-				end # if bytes length					
+				end # if bytes > length					
 				
 			else
-				print "."
+				# No Bytes to read
 				sleep 0
 			end # else 
-		end # while
-		logd("Connection must have become nil")
+			
+		end # while conn not nil
+		
+		logd("Connection must have nbeen lost")
+		
 		return false
 	end	# def
 	
@@ -256,7 +276,7 @@ class SpheroClient
 		logd()
 		logd "Building request: set back led output b"
 		
-		request=SpheroRequest.new(:synchronous)
+		request=SpheroRequest.new(:synchronous, self.debug)
 
 		request.did=0x02 
 		request.cid=0x21 
@@ -298,7 +318,7 @@ class SpheroClient
 		logd
 		logd "Building request: colour"
 		
-		request=SpheroRequest.new(:synchronous)
+		request=SpheroRequest.new(:synchronous, self.debug)
 
 
 		request.did=0x02 
@@ -319,7 +339,7 @@ class SpheroClient
 		logd()
 		logd( "Building request: roll")
 
-		request=SpheroRequest.new(:synchronous)
+		request=SpheroRequest.new(:synchronous, self.debug)
 		heading = heading_raw%359
 		logd( "Heading: #{heading}")
 
@@ -360,9 +380,11 @@ class SpheroClient
 		return @sequence_val
 	end # def 
 	
-	def initialize(bluetooth_address)
+	def initialize(bluetooth_address, debugval=false)
 		@sequence_val=0 
 		@responses=Hash.new
+		
+		@debug=debugval
 		
 		@queued_requests=[]
 		logd("Calling open connnection next. Using: #{bluetooth_address}")
@@ -398,7 +420,7 @@ class SpheroClient
 
 end # class 
 
-class SpheroResponse      
+class SpheroResponse < SpheroBase
 	
 	include SpheroUtilities
 	
@@ -412,7 +434,8 @@ class SpheroResponse
 	attr_accessor :sop2
 
 
-	def initialize(raw_data)
+	def initialize(raw_data, debugval)
+		@debug=debugval
 		@valid=false
 		@raw_data=raw_data.dup
 		@data=process_data(raw_data)
@@ -455,7 +478,7 @@ class SpheroResponse
 			@calculated_checksum=do_checksum( bytes )
 			logd "Response checksum: #{@calculated_checksum.to_s(16)}"
 			if @raw_checksum == @calculated_checksum then
-				logd("Response Checksum is GOOD")
+				logd("Response Checksum is Valid")
 				@valid=true
 				logd("Response data:#{bytes}")
 				@echoed_seq=bytes[1]
@@ -469,7 +492,7 @@ class SpheroResponse
 	end	# def
 end # class
 
-class SpheroRequest
+class SpheroRequest < SpheroBase
 	include SpheroUtilities
 	
 	attr_accessor :sop1
@@ -482,12 +505,12 @@ class SpheroRequest
 	attr_accessor :sequence
 
 	
-	def initialize(type=:synchronous)
+	def initialize(type=:synchronous, debugval)
 		if type==:synchronous
 			@sop1=0xFF
 			@sop2=0xFF 
 		end # if
-		
+		@debug=debugval
 		@packet_data=Array.new
 		@payload_data=Array.new
 	end # def 
