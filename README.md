@@ -40,9 +40,7 @@ sphero.close
 
 Example code: Orientation and the move in a square
 
-You can also see this in action on YouTube:
-
-<iframe width="560" height="315" src="https://www.youtube.com/embed/EesOPdC2aw0" frameborder="0" allowfullscreen></iframe>
+You can also see this on YouTube https://youtu.be/EesOPdC2aw0
 
 Here is the code:
 ```Ruby
