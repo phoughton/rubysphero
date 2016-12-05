@@ -39,6 +39,12 @@ sphero.close
 ```
 
 Example code: Orientation and the move in a square
+
+You can also see this in action on YouTube:
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/EesOPdC2aw0" frameborder="0" allowfullscreen></iframe>
+
+Here is the code:
 ```Ruby
 require 'rubysphero'
 
@@ -52,7 +58,7 @@ sphero.roll(90,50)
 sleep 1
 sphero.roll(180,50)
 sleep 1
-sphero.roll(270,57)
+sphero.roll(270,50)
 
 ```
 
