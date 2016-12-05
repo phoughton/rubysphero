@@ -61,7 +61,6 @@ class SpheroClient < SpheroBase
 	include SpheroUtilities
 	COMMS_RETRY=5
 	@read_thread
-	@collision_action 
 	
 		COLOURS = { 	:blue 	=> 	[0x00,0x00,0xFF],
 							:green 	=> 	[0x00,0xFF,0x00],
@@ -125,16 +124,20 @@ class SpheroClient < SpheroBase
 
 	def define_event_handling_for(event_type, &actions)
 		if event_type==:collision then
-			@collision_action=actions
+			@collision_actions.push actions
 		end # if 
 	end # def 
 	
 	def handle_collision_event(the_event_response )
 		logd("Handling collision event!")
 		Thread.new do
-			if @collision_action != nil then 
+			if @collision_actions != nil then 
 				logd "Collision action was NOT nil"
-				@collision_action.call the_event_response
+				
+				@collision_actions.each do |collision_action_item| 
+					collision_action_item.call the_event_response
+				end # each
+				
 			else
 				logd "Collision action was nil"
 			end # if 
@@ -383,7 +386,8 @@ class SpheroClient < SpheroBase
 	def initialize(bluetooth_address, debugval=false)
 		@sequence_val=0 
 		@responses=Hash.new
-		
+		@collision_actions=[]
+
 		@debug=debugval
 		
 		@queued_requests=[]
