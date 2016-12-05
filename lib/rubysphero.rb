@@ -156,6 +156,7 @@ class SpheroClient < SpheroBase
 			
 			if @responses.has_key? request.seq
 				logd("Response Queue has matching sequence")
+				forget_a_request request
 				return @responses[request.seq]
 			end # if
 			
@@ -163,10 +164,11 @@ class SpheroClient < SpheroBase
 			
 			if Time.now.getutc.to_i > (start_time+RESPONSE_TIMEOUT_SECONDS)
 				logd("Timing out waiting for a response.")
+				forget_a_request request
 				return false
 			end # if 
 
-			end while !responded
+		end while !responded
 		
 		return response.valid
 		
