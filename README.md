@@ -20,7 +20,7 @@ SpheroClient::COLOURS.each_key do |colour_name|
 end # each	
 ```
 
-Example code: Orientation and then roll forward at full speed...
+##Example code: Orientation and then roll forward at full speed...
 ```Ruby
 require 'rubysphero'
 
@@ -38,7 +38,7 @@ sleep 2
 sphero.close
 ```
 
-Example code: Orientation and the move in a square
+##Example code: Orientation and the move in a square
 
 You can also see this on YouTube https://youtu.be/EesOPdC2aw0
 
@@ -60,7 +60,7 @@ sphero.roll(270,50)
 
 ```
 
-Example code: React when Sphero hits something.
+##Example code: React when Sphero hits something.
 ```Ruby
 require 'rubysphero'
 
@@ -85,6 +85,3 @@ sphero.roll(0,255) # Roll 0 degrees at full speed.
 sleep 2
 
 ```
-
-
-
