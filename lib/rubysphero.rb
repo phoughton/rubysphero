@@ -130,18 +130,18 @@ class SpheroClient < SpheroBase
 	
 	def handle_collision_event(the_event_response )
 		logd("Handling collision event!")
-		Thread.new do
-			if @collision_actions != nil then 
-				logd "Collision action was NOT nil"
-				
-				@collision_actions.each do |collision_action_item| 
+		if @collision_actions != nil then 
+			logd "Collision action was NOT nil"
+			
+			@collision_actions.each do |collision_action_item| 
+				Thread.new do
 					collision_action_item.call the_event_response
-				end # each
-				
-			else
-				logd "Collision action was nil"
-			end # if 
-		end # thread 
+				end # thread 
+			end # each
+			
+		else
+			logd "Collision action was nil"
+		end # if 
 	end # 
 	
 	def send_and_check(request)
