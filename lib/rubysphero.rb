@@ -89,11 +89,11 @@ class SpheroClient < SpheroBase
 		request.dlen=0x07
 		
 		request.push_data meth
-		request.push_data 0x7F # xt
-		request.push_data 0x40 # xspd
-		request.push_data 0x7F # yt
-		request.push_data 0x40 # yspd		
-		request.push_data 0x40 # dead		
+		request.push_data 0x30 # xt
+		request.push_data 0x45 # xspd
+		request.push_data 0x30 # yt
+		request.push_data 0x45 # yspd		
+		request.push_data 0x80 # dead		
 		
 		if send_and_check(request) then
 			return true
